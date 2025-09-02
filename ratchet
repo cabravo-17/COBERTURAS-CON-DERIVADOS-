@@ -1,0 +1,44 @@
+def simulate_paths(self):
+dt = self.T / self.n_steps
+paths = np.zeros((self.n_paths, self.n_steps + 1))
+paths[:, 0] = self.S0
+for t in range(1, self.n_steps + 1):
+z = np.random.standard_normal(self.n_paths)
+paths[:, t] = paths[:, t-1] * np.exp((self.r - 0.5 * self.sigma**2) * dt + self.sigma * np.sqrt(dt) * z)
+return paths
+
+
+def price(self):
+paths = self.simulate_paths()
+dt = self.T / self.n_steps
+reset_idx = [int(date / self.T * self.n_steps) for date in self.reset_dates]
+strikes = np.full(self.n_paths, self.K)
+
+
+for idx in reset_idx:
+strikes = paths[:, idx]
+
+
+if self.option_type == "call":
+payoffs = np.maximum(paths[:, -1] - strikes, 0)
+else:
+payoffs = np.maximum(strikes - paths[:, -1], 0)
+
+
+discounted_payoff = np.exp(-self.r * self.T) * payoffs
+price = np.mean(discounted_payoff)
+
+
+return price, paths, strikes
+
+
+def plot_paths(self, n_plot=10):
+_, paths, strikes = self.price()
+plt.figure(figsize=(10, 6))
+for i in range(min(n_plot, self.n_paths)):
+plt.plot(paths[i], lw=1)
+plt.title(f"Simulación de {n_plot} Trayectorias - Opción Ratchet {self.option_type.capitalize()}")
+plt.xlabel("Pasos de Tiempo")
+plt.ylabel("Precio del Subyacente")
+plt.grid(True, linestyle="--", alpha=0.6)
+plt.show()
