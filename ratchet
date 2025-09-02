@@ -1,44 +1,100 @@
-def simulate_paths(self):
-dt = self.T / self.n_steps
-paths = np.zeros((self.n_paths, self.n_steps + 1))
-paths[:, 0] = self.S0
-for t in range(1, self.n_steps + 1):
-z = np.random.standard_normal(self.n_paths)
-paths[:, t] = paths[:, t-1] * np.exp((self.r - 0.5 * self.sigma**2) * dt + self.sigma * np.sqrt(dt) * z)
-return paths
+import numpy as np
+import matplotlib.pyplot as plt
 
+# ===============================
+# Valuación Opción Exótica Ratchet
+# ===============================
 
-def price(self):
-paths = self.simulate_paths()
-dt = self.T / self.n_steps
-reset_idx = [int(date / self.T * self.n_steps) for date in self.reset_dates]
-strikes = np.full(self.n_paths, self.K)
+def ratchet_option_mc(S0, r, sigma, T, n_steps, n_paths, option="call"):
+    """
+    Valuación por Monte Carlo de una opción Ratchet (Reset Option).
+    
+    Parámetros:
+    -----------
+    S0 : float
+        Precio inicial del subyacente.
+    r : float
+        Tasa libre de riesgo anualizada.
+    sigma : float
+        Volatilidad anualizada del subyacente.
+    T : float
+        Tiempo a vencimiento total (en años).
+    n_steps : int
+        Número de pasos de reinicio (resets).
+    n_paths : int
+        Número de simulaciones Monte Carlo.
+    option : str
+        "call" o "put".
+    
+    Retorna:
+    --------
+    precio : float
+        Precio estimado de la opción Ratchet.
+    """
+    
+    dt = T / n_steps
+    payoff = np.zeros(n_paths)
 
+    for i in range(n_paths):
+        S = S0
+        strike = S0  # primer strike inicial
+        for j in range(n_steps):
+            # Simulación de precio usando movimiento browniano geométrico
+            Z = np.random.normal()
+            S = S * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z)
 
-for idx in reset_idx:
-strikes = paths[:, idx]
+            # Reset: strike se ajusta al nuevo nivel spot
+            strike = S
 
+        # payoff al vencimiento
+        if option == "call":
+            payoff[i] = max(S - strike, 0)
+        elif option == "put":
+            payoff[i] = max(strike - S, 0)
 
-if self.option_type == "call":
-payoffs = np.maximum(paths[:, -1] - strikes, 0)
-else:
-payoffs = np.maximum(strikes - paths[:, -1], 0)
+    # Valor presente esperado
+    precio = np.exp(-r * T) * np.mean(payoff)
+    return precio
 
+# ===============================
+# Ejemplo de uso
+# ===============================
 
-discounted_payoff = np.exp(-self.r * self.T) * payoffs
-price = np.mean(discounted_payoff)
+S0 = 100     # precio spot
+r = 0.05     # tasa libre de riesgo
+sigma = 0.2  # volatilidad
+T = 1        # tiempo a vencimiento (1 año)
+n_steps = 4  # resets trimestrales
+n_paths = 100000  # número de simulaciones Monte Carlo
 
+precio_ratchet_call = ratchet_option_mc(S0, r, sigma, T, n_steps, n_paths, option="call")
+precio_ratchet_put  = ratchet_option_mc(S0, r, sigma, T, n_steps, n_paths, option="put")
 
-return price, paths, strikes
+print(f"Precio Ratchet Call: {precio_ratchet_call:.4f}")
+print(f"Precio Ratchet Put : {precio_ratchet_put:.4f}")
 
+# ===============================
+# Gráfico ejemplo de trayectorias
+# ===============================
 
-def plot_paths(self, n_plot=10):
-_, paths, strikes = self.price()
-plt.figure(figsize=(10, 6))
-for i in range(min(n_plot, self.n_paths)):
-plt.plot(paths[i], lw=1)
-plt.title(f"Simulación de {n_plot} Trayectorias - Opción Ratchet {self.option_type.capitalize()}")
-plt.xlabel("Pasos de Tiempo")
-plt.ylabel("Precio del Subyacente")
-plt.grid(True, linestyle="--", alpha=0.6)
-plt.show()
+def plot_paths(S0, r, sigma, T, n_steps, n_paths=10):
+    dt = T / n_steps
+    time = np.linspace(0, T, n_steps+1)
+    plt.figure(figsize=(8,5))
+
+    for _ in range(n_paths):
+        S = [S0]
+        for j in range(n_steps):
+            Z = np.random.normal()
+            S_new = S[-1] * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z)
+            S.append(S_new)
+        plt.plot(time, S, lw=1)
+
+    plt.title("Trayectorias simuladas del subyacente (Ratchet Option)")
+    plt.xlabel("Tiempo (años)")
+    plt.ylabel("Precio del activo subyacente")
+    plt.grid(True)
+    plt.show()
+
+# Dibujar 10 trayectorias simuladas
+plot_paths(S0, r, sigma, T, n_steps, n_paths=10)
